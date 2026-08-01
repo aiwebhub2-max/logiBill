@@ -3,6 +3,8 @@ import { ArrowLeft, Save, User, Mail, Phone, MapPin } from "lucide-react";
 import { createClient } from "@/app/actions/clients";
 import { redirect } from "next/navigation";
 
+export const dynamic = 'force-dynamic';
+
 export default function NewClientPage() {
   async function handleSubmit(formData: FormData) {
     "use server";
