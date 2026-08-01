@@ -3,6 +3,8 @@ import DashboardLayoutClient from "./DashboardLayoutClient";
 
 import { supabase } from "@/lib/supabase";
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: {
     template: "%s | logiBill",
