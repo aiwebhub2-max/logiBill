@@ -2,6 +2,15 @@
 
 import { getAuthenticatedCompanyId } from './utils'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+
+const paymentSchema = z.object({
+  invoice_id: z.string().uuid(),
+  amount: z.number().positive(),
+  method: z.string().min(1),
+  payment_date: z.string().min(1),
+  notes: z.string().optional().or(z.literal('')),
+})
 
 export async function getPayments() {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
@@ -37,22 +46,29 @@ export async function getPayments() {
 export async function createPayment(paymentData: any) {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
 
+  const parsed = paymentSchema.safeParse(paymentData)
+  
+  if (!parsed.success) {
+    console.error('Validation error:', parsed.error)
+    throw new Error('Données de paiement invalides')
+  }
+
   const { data, error } = await supabase
     .from('payments')
     .insert({
       company_id: companyId,
-      invoice_id: paymentData.invoice_id,
-      amount: paymentData.amount,
-      method: paymentData.method,
-      payment_date: paymentData.payment_date,
-      notes: paymentData.notes || null,
+      invoice_id: parsed.data.invoice_id,
+      amount: parsed.data.amount,
+      method: parsed.data.method,
+      payment_date: parsed.data.payment_date,
+      notes: parsed.data.notes || null,
     })
     .select()
     .single()
 
   if (error) {
     console.error('Error creating payment:', error)
-    throw new Error('Failed to create payment')
+    throw new Error('Échec lors de la création du paiement')
   }
 
   // If a payment is created, we might want to update the invoice status

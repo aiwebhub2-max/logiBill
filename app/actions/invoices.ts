@@ -2,7 +2,24 @@
 
 import { getAuthenticatedCompanyId } from './utils'
 import { revalidatePath } from 'next/cache'
-import { Database } from '@/types/supabase'
+import { z } from 'zod'
+
+const invoiceSchema = z.object({
+  client_id: z.string().uuid(),
+  invoice_number: z.string().min(1),
+  issue_date: z.string().min(1),
+  due_date: z.string().min(1),
+  status: z.enum(['draft', 'sent', 'paid', 'overdue']).default('draft'),
+  tax_rate: z.number().nonnegative().default(0),
+  notes: z.string().optional().or(z.literal('')),
+})
+
+const invoiceLineSchema = z.object({
+  item_id: z.string().uuid().optional().nullable(),
+  description: z.string().min(1),
+  quantity: z.number().positive(),
+  unit_price: z.number().nonnegative(),
+})
 
 export async function getInvoices() {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
@@ -44,32 +61,44 @@ export async function getInvoices() {
 export async function createInvoice(invoiceData: any, linesData: any[]) {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
 
+  const parsedInvoice = invoiceSchema.safeParse(invoiceData)
+  if (!parsedInvoice.success) {
+    console.error('Validation error (invoice):', parsedInvoice.error)
+    throw new Error('Données de facture invalides')
+  }
+
+  const parsedLines = z.array(invoiceLineSchema).safeParse(linesData)
+  if (!parsedLines.success) {
+    console.error('Validation error (lines):', parsedLines.error)
+    throw new Error('Données de lignes de facture invalides')
+  }
+
   // 1. Insert Invoice
   const { data: invoice, error: invoiceError } = await supabase
     .from('invoices')
     .insert({
       company_id: companyId,
-      client_id: invoiceData.client_id,
-      invoice_number: invoiceData.invoice_number,
-      issue_date: invoiceData.issue_date,
-      due_date: invoiceData.due_date,
-      status: invoiceData.status || 'draft',
-      tax_rate: invoiceData.tax_rate || 0,
-      notes: invoiceData.notes || null,
+      client_id: parsedInvoice.data.client_id,
+      invoice_number: parsedInvoice.data.invoice_number,
+      issue_date: parsedInvoice.data.issue_date,
+      due_date: parsedInvoice.data.due_date,
+      status: parsedInvoice.data.status,
+      tax_rate: parsedInvoice.data.tax_rate,
+      notes: parsedInvoice.data.notes || null,
     })
     .select()
     .single()
 
   if (invoiceError || !invoice) {
     console.error('Error creating invoice:', invoiceError)
-    throw new Error('Failed to create invoice')
+    throw new Error('Échec lors de la création de la facture')
   }
 
   // 2. Insert Lines
-  const formattedLines = linesData.map((line, index) => ({
+  const formattedLines = parsedLines.data.map((line, index) => ({
     invoice_id: invoice.id,
     item_id: line.item_id || null, // null if custom item
-    description: line.description || '', // Supabase schema requires description string
+    description: line.description, // Supabase schema requires description string
     quantity: line.quantity,
     unit_price: line.unit_price,
     position: index
@@ -82,7 +111,7 @@ export async function createInvoice(invoiceData: any, linesData: any[]) {
   if (linesError) {
     console.error('Error creating invoice lines:', linesError)
     // Optional: rollback invoice creation here or handle via RPC transaction
-    throw new Error('Failed to create invoice lines')
+    throw new Error('Échec lors de la création des lignes de facture')
   }
 
   revalidatePath('/invoices')

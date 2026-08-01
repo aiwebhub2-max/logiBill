@@ -4,6 +4,24 @@ import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/utils/supabase/server'
 import { PostHog } from 'posthog-node'
+import { headers } from 'next/headers'
+import { LRUCache } from 'lru-cache'
+import { z } from 'zod'
+
+const rateLimit = new LRUCache({
+  max: 500,
+  ttl: 60000, // 1 minute
+})
+
+function checkRateLimit() {
+  const ip = headers().get('x-forwarded-for') || '127.0.0.1'
+  const count = (rateLimit.get(ip) as number) || 0
+  if (count >= 5) {
+    return false
+  }
+  rateLimit.set(ip, count + 1)
+  return true
+}
 
 function PostHogClient() {
   const posthogClient = new PostHog(
@@ -17,22 +35,32 @@ function PostHogClient() {
   return posthogClient
 }
 
-export async function login(formData: FormData) {
-  const supabase = createClient()
+const authSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+})
 
-  // type-casting here for convenience
-  // in practice, you should validate your inputs
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+export async function login(formData: FormData) {
+  if (!checkRateLimit()) {
+    redirect('/login?message=Trop de tentatives, veuillez réessayer plus tard.')
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
+  const supabase = createClient()
+
+  const parsed = authSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  })
+
+  if (!parsed.success) {
+    redirect('/login?message=Format d\'email ou de mot de passe invalide')
+  }
+
+  const { error } = await supabase.auth.signInWithPassword(parsed.data)
 
   if (error) {
     console.error("Login error:", error)
-    const errorMsg = error.message ? error.message : JSON.stringify(error)
-    redirect(`/login?message=${encodeURIComponent(errorMsg)}`)
+    redirect('/login?message=Identifiants invalides')
   }
 
   revalidatePath('/', 'layout')
@@ -40,19 +68,26 @@ export async function login(formData: FormData) {
 }
 
 export async function signup(formData: FormData) {
-  const supabase = createClient()
-
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  if (!checkRateLimit()) {
+    redirect('/signup?message=Trop de tentatives, veuillez réessayer plus tard.')
   }
 
-  const { data: authData, error } = await supabase.auth.signUp(data)
+  const supabase = createClient()
+
+  const parsed = authSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  })
+
+  if (!parsed.success) {
+    redirect('/signup?message=Format d\'email ou de mot de passe invalide')
+  }
+
+  const { data: authData, error } = await supabase.auth.signUp(parsed.data)
 
   if (error) {
     console.error("Signup error:", error)
-    const errorMsg = error.message ? error.message : JSON.stringify(error)
-    redirect(`/signup?message=${encodeURIComponent(errorMsg)}`)
+    redirect('/signup?message=Erreur lors de l\'inscription')
   }
 
   if (authData.user) {
@@ -61,16 +96,14 @@ export async function signup(formData: FormData) {
       distinctId: authData.user.id,
       event: 'user_signed_up',
       properties: {
-        email: data.email,
+        email: parsed.data.email,
       },
     })
     await posthog.shutdown()
   }
 
   revalidatePath('/', 'layout')
-  // We'll redirect to a generic welcome page or dashboard
-  // Depending on email verification settings, user may need to check email.
-  redirect('/login?message=Check email to continue sign in process')
+  redirect('/login?message=Vérifiez votre email pour continuer l\'inscription')
 }
 
 export async function signout() {

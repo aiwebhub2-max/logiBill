@@ -2,6 +2,16 @@
 
 import { getAuthenticatedCompanyId } from './utils'
 import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+
+const inventoryItemSchema = z.object({
+  name: z.string().min(2, "Le nom doit contenir au moins 2 caractères").max(100),
+  category: z.string().max(50).optional().or(z.literal('')),
+  sku: z.string().max(50).optional().or(z.literal('')),
+  stock_quantity: z.number().int().nonnegative(),
+  unit_price: z.number().nonnegative(),
+  stock_alert_threshold: z.number().int().nonnegative(),
+})
 
 export async function getInventoryItems() {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
@@ -26,21 +36,35 @@ export async function getInventoryItems() {
 export async function createInventoryItem(formData: FormData) {
   const { companyId, supabase } = await getAuthenticatedCompanyId()
   
-  const newItem = {
-    company_id: companyId,
-    name: formData.get('name') as string,
-    category: formData.get('category') as string || null,
-    sku: formData.get('sku') as string || null,
+  const parsed = inventoryItemSchema.safeParse({
+    name: formData.get('name'),
+    category: formData.get('category') || '',
+    sku: formData.get('sku') || '',
     stock_quantity: parseInt(formData.get('stock_quantity') as string) || 0,
     unit_price: parseFloat(formData.get('unit_price') as string) || 0,
     stock_alert_threshold: parseInt(formData.get('stock_alert_threshold') as string) || 5,
+  })
+
+  if (!parsed.success) {
+    console.error('Validation error:', parsed.error)
+    throw new Error('Données d\'inventaire invalides')
+  }
+
+  const newItem = {
+    company_id: companyId,
+    name: parsed.data.name,
+    category: parsed.data.category || null,
+    sku: parsed.data.sku || null,
+    stock_quantity: parsed.data.stock_quantity,
+    unit_price: parsed.data.unit_price,
+    stock_alert_threshold: parsed.data.stock_alert_threshold,
   }
 
   const { error } = await supabase.from('inventory_items').insert(newItem)
   
   if (error) {
     console.error('Error creating inventory item:', error)
-    throw new Error('Failed to create inventory item')
+    throw new Error('Échec lors de la création de l\'article')
   }
 
   revalidatePath('/inventory')
