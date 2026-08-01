@@ -34,7 +34,7 @@ export default function SignupPage({
           formAction={signup}
           className="bg-green-600 rounded-md px-4 py-2 text-white font-medium hover:bg-green-700 mt-4 transition-colors"
         >
-          S'inscrire
+          S&apos;inscrire
         </button>
         <p className="text-sm text-center text-gray-600 mt-4">
           Déjà un compte ?{' '}

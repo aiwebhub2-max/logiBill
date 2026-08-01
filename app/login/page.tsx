@@ -38,7 +38,7 @@ export default function LoginPage({
         <p className="text-sm text-center text-gray-600 mt-4">
           Pas encore de compte ?{' '}
           <Link href="/signup" className="text-blue-600 hover:underline">
-            S'inscrire
+            S&apos;inscrire
           </Link>
         </p>
         {searchParams?.message && (
