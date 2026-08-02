@@ -103,7 +103,13 @@ export async function signup(formData: FormData) {
   }
 
   revalidatePath('/', 'layout')
-  redirect('/login?message=Vérifiez votre email pour continuer l\'inscription')
+  
+  // If email confirmation is disabled in Supabase, a session is returned immediately
+  if (authData.session) {
+    redirect('/dashboard')
+  } else {
+    redirect('/login?message=Vérifiez votre email pour continuer l\'inscription')
+  }
 }
 
 export async function signout() {
