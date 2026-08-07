@@ -4,6 +4,8 @@ import { useState } from "react";
 import Sidebar from "@/components/layout/Sidebar";
 import Header from "@/components/layout/Header";
 import { usePathname } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
+import type { Company } from "@/types";
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
   "/dashboard": { title: "Tableau de bord", subtitle: "Vue d'ensemble de votre activité" },
@@ -19,10 +21,14 @@ export default function DashboardLayoutClient({
   children,
   invoicesCount,
   inventoryAlertsCount,
+  user,
+  company,
 }: {
   children: React.ReactNode;
   invoicesCount?: number;
   inventoryAlertsCount?: number;
+  user: User | null;
+  company: Company | null;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const pathname = usePathname();
@@ -37,6 +43,8 @@ export default function DashboardLayoutClient({
         onClose={() => setSidebarOpen(false)}
         invoicesCount={invoicesCount}
         inventoryAlertsCount={inventoryAlertsCount}
+        user={user}
+        company={company}
       />
 
       {/* Main content */}
@@ -46,6 +54,7 @@ export default function DashboardLayoutClient({
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
           title={pageInfo.title}
           subtitle={pageInfo.subtitle}
+          user={user}
         />
 
         {/* Page content */}

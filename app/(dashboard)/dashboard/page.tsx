@@ -19,6 +19,7 @@ import InvoiceTable from "@/components/dashboard/InvoiceTable";
 import { getDashboardStats } from "@/app/actions/dashboard";
 import { getInventoryItems } from "@/app/actions/inventory";
 import { getClients } from "@/app/actions/clients";
+import { createClient } from "@/utils/supabase/server";
 import { formatFC, cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
@@ -27,6 +28,10 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const firstName = user?.user_metadata?.first_name || "Utilisateur";
+
   const stats = await getDashboardStats();
   const inventoryItems = await getInventoryItems();
   const clients = await getClients();
@@ -45,7 +50,7 @@ export default async function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Bonjour, Franck 👋
+            Bonjour, {firstName} 👋
           </h1>
           <p className="text-gray-500 text-sm mt-0.5">
             Voici le résumé de votre activité du jour

@@ -4,19 +4,27 @@ import { Bell, Search, Menu, Plus, ChevronDown } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { signout } from "@/app/login/actions";
+import type { User } from "@supabase/supabase-js";
 
 interface HeaderProps {
   onMenuToggle: () => void;
   title?: string;
   subtitle?: string;
+  user?: User | null;
 }
 
-export default function Header({ onMenuToggle, title, subtitle }: HeaderProps) {
+export default function Header({ onMenuToggle, title, subtitle, user }: HeaderProps) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const firstName = user?.user_metadata?.first_name || "";
+  const lastName = user?.user_metadata?.last_name || "";
+  const initials = firstName || lastName 
+    ? `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() 
+    : "U";
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -155,8 +163,8 @@ export default function Header({ onMenuToggle, title, subtitle }: HeaderProps) {
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-xl hover:bg-gray-100 transition-colors group"
           >
-            <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center text-gray-700 font-semibold text-sm">
-              U
+            <div className="w-8 h-8 rounded-xl bg-brand-600/10 flex items-center justify-center text-brand-700 font-semibold text-sm">
+              {initials}
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-900 transition-colors hidden sm:block" />
           </button>

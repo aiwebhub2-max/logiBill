@@ -24,30 +24,51 @@ function checkRateLimit() {
 }
 
 function PostHogClient() {
-  const posthogClient = new PostHog(
-    process.env.NEXT_PUBLIC_POSTHOG_KEY as string,
-    {
-      host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
-      flushAt: 1,
-      flushInterval: 0
-    }
-  )
-  return posthogClient
+  if (!process.env.NEXT_PUBLIC_POSTHOG_KEY) {
+    return null
+  }
+  try {
+    const posthogClient = new PostHog(
+      process.env.NEXT_PUBLIC_POSTHOG_KEY as string,
+      {
+        host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com',
+        flushAt: 1,
+        flushInterval: 0
+      }
+    )
+    return posthogClient
+  } catch (error) {
+    console.error("PostHog initialization error:", error)
+    return null
+  }
 }
 
-const authSchema = z.object({
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+})
+
+const signupSchema = z.object({
+  first_name: z.string().min(2),
+  last_name: z.string().min(2),
+  company_name: z.string().min(2),
+  job_title: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(6),
 })
 
 export async function login(formData: FormData) {
+  console.log('--- LOGIN ACTION TRIGGERED ---')
+  console.log('FormData:', Object.fromEntries(formData.entries()))
+  
   if (!checkRateLimit()) {
+    console.log('--- RATE LIMIT HIT ---')
     redirect('/login?message=Trop de tentatives, veuillez réessayer plus tard.')
   }
 
   const supabase = createClient()
 
-  const parsed = authSchema.safeParse({
+  const parsed = loginSchema.safeParse({
     email: formData.get('email'),
     password: formData.get('password'),
   })
@@ -60,7 +81,10 @@ export async function login(formData: FormData) {
 
   if (error) {
     console.error("Login error:", error)
-    redirect('/login?message=Identifiants invalides')
+    if (error.message.includes('Email not confirmed')) {
+      redirect('/login?message=Veuillez vérifier votre adresse e-mail avant de vous connecter.')
+    }
+    redirect('/login?message=Adresse e-mail ou mot de passe incorrect.')
   }
 
   revalidatePath('/', 'layout')
@@ -74,32 +98,53 @@ export async function signup(formData: FormData) {
 
   const supabase = createClient()
 
-  const parsed = authSchema.safeParse({
+  const parsed = signupSchema.safeParse({
+    first_name: formData.get('first_name'),
+    last_name: formData.get('last_name'),
+    company_name: formData.get('company_name'),
+    job_title: formData.get('job_title'),
     email: formData.get('email'),
     password: formData.get('password'),
   })
 
   if (!parsed.success) {
-    redirect('/signup?message=Format d\'email ou de mot de passe invalide')
+    redirect('/signup?message=Veuillez remplir correctement tous les champs requis')
   }
 
-  const { data: authData, error } = await supabase.auth.signUp(parsed.data)
+  const { data: authData, error } = await supabase.auth.signUp({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: {
+      data: {
+        first_name: parsed.data.first_name,
+        last_name: parsed.data.last_name,
+        company_name: parsed.data.company_name,
+        job_title: parsed.data.job_title,
+      }
+    }
+  })
 
   if (error) {
     console.error("Signup error:", error)
+    if (error.message.includes('already registered') || error.status === 422) {
+      redirect('/signup?message=Cet adresse e-mail est déjà utilisée. Veuillez vous connecter.')
+    }
     redirect('/signup?message=Erreur lors de l\'inscription')
   }
 
   if (authData.user) {
     const posthog = PostHogClient()
-    posthog.capture({
-      distinctId: authData.user.id,
-      event: 'user_signed_up',
-      properties: {
-        email: parsed.data.email,
-      },
-    })
-    await posthog.shutdown()
+    if (posthog) {
+      posthog.capture({
+        distinctId: authData.user.id,
+        event: 'user_signed_up',
+        properties: {
+          email: parsed.data.email,
+          company: parsed.data.company_name,
+        },
+      })
+      await posthog.shutdown()
+    }
   }
 
   revalidatePath('/', 'layout')

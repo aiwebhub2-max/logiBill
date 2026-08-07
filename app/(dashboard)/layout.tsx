@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import DashboardLayoutClient from "./DashboardLayoutClient";
 
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/utils/supabase/server";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,9 +12,19 @@ export const metadata: Metadata = {
   },
 };
 
-async function getSidebarCounts() {
-  const { data: company } = await supabase.from('companies').select('id').limit(1).single();
-  if (!company) return { invoices: 0, inventoryAlerts: 0 };
+async function getDashboardData() {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { counts: { invoices: 0, inventoryAlerts: 0 }, company: null, user: null };
+  }
+
+  const { data: company } = await supabase.from('companies').select('*').limit(1).single();
+  
+  if (!company) {
+    return { counts: { invoices: 0, inventoryAlerts: 0 }, company: null, user };
+  }
   
   const { count: invoicesCount } = await supabase
     .from('invoices')
@@ -33,8 +43,12 @@ async function getSidebarCounts() {
   }
   
   return {
-    invoices: invoicesCount || 0,
-    inventoryAlerts
+    counts: {
+      invoices: invoicesCount || 0,
+      inventoryAlerts
+    },
+    company,
+    user
   };
 }
 
@@ -43,12 +57,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const counts = await getSidebarCounts();
+  const data = await getDashboardData();
 
   return (
     <DashboardLayoutClient 
-      invoicesCount={counts.invoices} 
-      inventoryAlertsCount={counts.inventoryAlerts}
+      invoicesCount={data.counts.invoices} 
+      inventoryAlertsCount={data.counts.inventoryAlerts}
+      user={data.user}
+      company={data.company}
     >
       {children}
     </DashboardLayoutClient>

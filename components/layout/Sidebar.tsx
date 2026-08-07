@@ -17,6 +17,9 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import type { User } from "@supabase/supabase-js";
+import type { Company } from "@/types";
+
 const navItems = [
   {
     href: "/dashboard",
@@ -60,13 +63,22 @@ interface SidebarProps {
   onClose: () => void;
   invoicesCount?: number;
   inventoryAlertsCount?: number;
+  user?: User | null;
+  company?: Company | null;
 }
 
-export default function Sidebar({ isOpen, onClose, invoicesCount = 0, inventoryAlertsCount = 0 }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, invoicesCount = 0, inventoryAlertsCount = 0, user, company }: SidebarProps) {
   const pathname = usePathname();
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + "/");
+    
+  const companyName = company?.name || "Mon Entreprise";
+  const taxNumber = company?.tax_number ? `NRC: ${company.tax_number}` : "NRC: Non défini";
+  const firstName = user?.user_metadata?.first_name || "Utilisateur";
+  const lastName = user?.user_metadata?.last_name || "";
+  const jobTitle = user?.user_metadata?.job_title || "Administrateur";
+  const initials = `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || "U";
 
   return (
     <>
@@ -121,14 +133,14 @@ export default function Sidebar({ isOpen, onClose, invoicesCount = 0, inventoryA
         <div className="mx-3 mt-4 px-3 py-3 rounded-xl bg-surface-muted border border-surface-border">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-brand-600 to-purple-600 flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-4 h-4 text-gray-900" />
+              <Building2 className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold text-gray-900 truncate">
-                MonEntreprise SARL
+                {companyName}
               </p>
               <p className="text-[10px] text-gray-500 truncate">
-                NRC: KIN-24-12345
+                {taxNumber}
               </p>
             </div>
           </div>
@@ -244,14 +256,14 @@ export default function Sidebar({ isOpen, onClose, invoicesCount = 0, inventoryA
 
           {/* User profile */}
           <div className="mt-3 flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer group">
-            <div className="w-8 h-8 rounded-xl  flex-shrink-0">
-              FM
+            <div className="w-8 h-8 rounded-xl bg-gray-200 flex items-center justify-center text-gray-700 font-semibold text-sm flex-shrink-0">
+              {initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-gray-800 truncate">Franck M.</p>
-              <p className="text-[10px] text-gray-500 truncate">Administrateur</p>
+              <p className="text-xs font-semibold text-gray-800 truncate">{firstName} {lastName}</p>
+              <p className="text-[10px] text-gray-500 truncate">{jobTitle}</p>
             </div>
-            <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-600 transition-colors" />
+            <ChevronRight className="w-3.5 h-3.5 text-gray-600 group-hover:text-gray-900 transition-colors" />
           </div>
         </div>
       </aside>
