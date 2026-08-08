@@ -20,6 +20,7 @@ import { InvoiceLine } from "@/types";
 import { cn } from "@/lib/utils";
 import { InvoicePreview } from "@/components/dashboard/InvoicePreview";
 import { createInvoice } from "@/app/actions/invoices";
+import { createClient } from "@/app/actions/clients";
 import { useRouter } from "next/navigation";
 
 interface FormLine extends Omit<InvoiceLine, "id" | "invoice_id"> {
@@ -83,17 +84,30 @@ export default function NewInvoiceClient({
   };
 
   const handleSubmit = async (status: "draft" | "sent" = "draft") => {
+    if (!clientName.trim()) {
+      alert("Veuillez saisir un nom de client.");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       
-      // Trouver le client ou s'attendre à ce qu'il soit créé plus tard (pour l'instant, on assume qu'il existe)
-      let clientId = initialClients.find(c => c.name.toLowerCase() === clientName.toLowerCase())?.id;
+      let clientId = initialClients.find(c => c.name.toLowerCase() === clientName.trim().toLowerCase())?.id;
       
       if (!clientId) {
-        // En vrai, il faudrait appeler createClient ici
-        alert("La création automatique de client arrive bientôt. Veuillez choisir un client existant pour l'instant.");
-        setIsSubmitting(false);
-        return;
+        // Create the client on the fly
+        const formData = new FormData();
+        formData.append("name", clientName.trim());
+        
+        try {
+          const newClient = await createClient(formData);
+          clientId = newClient.id;
+        } catch (clientError) {
+          console.error("Erreur création client:", clientError);
+          alert("Erreur lors de la création automatique du client.");
+          setIsSubmitting(false);
+          return;
+        }
       }
 
       await createInvoice({

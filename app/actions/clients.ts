@@ -58,7 +58,7 @@ export async function createClient(formData: FormData) {
     address: parsed.data.address || null,
   }
 
-  const { error } = await supabase.from('clients').insert(newClient)
+  const { data, error } = await supabase.from('clients').insert(newClient).select().single()
   
   if (error) {
     console.error('Error creating client:', error)
@@ -66,6 +66,7 @@ export async function createClient(formData: FormData) {
   }
 
   revalidatePath('/clients')
+  return data
 }
 
 export async function deleteClient(id: string) {
